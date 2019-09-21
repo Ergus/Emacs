@@ -4115,8 +4115,7 @@ handle_fontified_prop (struct it *it)
  ***********************************************************************/
 
 static int
-handle_face_prop_general (struct it *it, int initial_face_id,
-                          enum lface_attribute_index attr_filter)
+face_at_pos (struct it *it, enum lface_attribute_index attr_filter)
 {
   int new_face_id;
   ptrdiff_t next_stop;
@@ -4220,13 +4219,13 @@ handle_face_prop_general (struct it *it, int initial_face_id,
      face will not change until limit, i.e. if the new face has a
      box, all characters up to limit will have one.  But, as
      usual, we don't know whether limit is really the end.  */
-  if (new_face_id != initial_face_id)
+  if (new_face_id != it->face_id)
     {
       struct face *new_face = FACE_FROM_ID (it->f, new_face_id);
       /* If it->face_id is -1, old_face below will be NULL, see
 	 the definition of FACE_FROM_ID_OR_NULL.  This will happen
 	 if this is the initial call that gets the face.  */
-      struct face *old_face = FACE_FROM_ID_OR_NULL (it->f, initial_face_id);
+      struct face *old_face = FACE_FROM_ID_OR_NULL (it->f, it->face_id);
 
       /* If the value of face_id of the iterator is -1, we have to
 	 look in front of IT's position and see whether there is a
@@ -4257,7 +4256,7 @@ handle_face_prop_general (struct it *it, int initial_face_id,
 static enum prop_handled
 handle_face_prop (struct it *it)
 {
-  it->face_id = handle_face_prop_general (it, it->face_id, 0);
+  it->face_id = face_at_pos (it, 0);
   return HANDLED_NORMALLY;
 }
 
@@ -20492,15 +20491,15 @@ extend_face_to_end_of_line (struct it *it)
 	   || WINDOW_RIGHT_MARGIN_WIDTH (it->w) > 0))
     return;
 
-  it->extend_face_id
-    = handle_face_prop_general (it, it->extend_face_id, LFACE_EXTEND_INDEX);
+  const int extend_face_id
+    = face_at_pos (it, LFACE_EXTEND_INDEX);
 
   /* Face extension extends the background and box of IT->extend_face_id
      to the end of the line.  If the background equals the background
      of the frame, we don't have to do anything.  */
   face = FACE_FROM_ID (f, (it->face_before_selective_p
-			   ? it->saved_face_id
-			   : it->extend_face_id));
+                           ? it->saved_face_id
+                           : extend_face_id));
 
   if (FRAME_WINDOW_P (f)
       && MATRIX_ROW_DISPLAYS_TEXT_P (it->glyph_row)
@@ -20591,7 +20590,7 @@ extend_face_to_end_of_line (struct it *it)
 	  Lisp_Object save_object = it->object;
 	  const int saved_face_id = it->face_id;
 
-	  it->face_id = it->extend_face_id;
+	  it->face_id = extend_face_id;
 	  it->avoid_cursor_p = true;
 	  it->object = Qnil;
 
@@ -20625,7 +20624,7 @@ extend_face_to_end_of_line (struct it *it)
 		    = XFIXNAT (Vdisplay_fill_column_indicator_character);
 		  it->face_id
 		    = merge_faces (it->w, Qfill_column_indicator,
-		                   0, it->extend_face_id);
+		                   0, extend_face_id);
 		  PRODUCE_GLYPHS (it);
 		  it->face_id = save_face_id;
 		}
@@ -20772,7 +20771,7 @@ extend_face_to_end_of_line (struct it *it)
 	    {
 	      int saved_face_id = it->face_id;
 	      it->face_id
-		= merge_faces (it->w, Qfill_column_indicator, 0, it->extend_face_id);
+		= merge_faces (it->w, Qfill_column_indicator, 0, extend_face_id);
 	      it->c = it->char_to_display
 		= XFIXNAT (Vdisplay_fill_column_indicator_character);
 

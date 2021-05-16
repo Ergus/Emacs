@@ -31,7 +31,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <libgccjit.h>
 #include <epaths.h>
 
-#include "puresize.h"
 #include "window.h"
 #include "dynlib.h"
 #include "buffer.h"
@@ -652,7 +651,6 @@ bool helper_PSEUDOVECTOR_TYPEP_XUNTAG (Lisp_Object a, enum pvec_type code);
 void *helper_link_table[] =
   { wrong_type_argument,
     helper_PSEUDOVECTOR_TYPEP_XUNTAG,
-    pure_write_error,
     push_handler,
     record_unwind_protect_excursion,
     helper_unbind_n,
@@ -3625,52 +3623,6 @@ define_PSEUDOVECTORP (void)
 }
 
 static void
-define_CHECK_IMPURE (void)
-{
-  gcc_jit_param *param[] =
-    { gcc_jit_context_new_param (comp.ctxt,
-				 NULL,
-				 comp.lisp_obj_type,
-				 "obj"),
-      gcc_jit_context_new_param (comp.ctxt,
-				 NULL,
-				 comp.void_ptr_type,
-				 "ptr") };
-  comp.check_impure =
-    gcc_jit_context_new_function (comp.ctxt, NULL,
-				  GCC_JIT_FUNCTION_INTERNAL,
-				  comp.void_type,
-				  "CHECK_IMPURE",
-				  2,
-				  param,
-				  0);
-
-    DECL_BLOCK (entry_block, comp.check_impure);
-    DECL_BLOCK (err_block, comp.check_impure);
-    DECL_BLOCK (ok_block, comp.check_impure);
-
-    comp.block = entry_block;
-    comp.func = comp.check_impure;
-
-    emit_cond_jump (emit_PURE_P (gcc_jit_param_as_rvalue (param[0])), /* FIXME */
-		    err_block,
-		    ok_block);
-    gcc_jit_block_end_with_void_return (ok_block, NULL);
-
-    gcc_jit_rvalue *pure_write_error_arg =
-      gcc_jit_param_as_rvalue (param[0]);
-
-    comp.block = err_block;
-    gcc_jit_block_add_eval (comp.block,
-			    NULL,
-			    emit_call (intern_c_string ("pure_write_error"),
-				       comp.void_type, 1,&pure_write_error_arg,
-				       false));
-
-    gcc_jit_block_end_with_void_return (err_block, NULL);
-}
-
-static void
 define_maybe_gc_or_quit (void)
 {
 
@@ -4708,10 +4660,10 @@ maybe_defer_native_compilation (Lisp_Object function_name,
 
   Lisp_Object src =
     concat2 (CALL1I (file-name-sans-extension, Vload_true_file_name),
-	     build_pure_c_string (".el"));
+	     build_string (".el"));
   if (NILP (Ffile_exists_p (src)))
     {
-      src = concat2 (src, build_pure_c_string (".gz"));
+      src = concat2 (src, build_string (".gz"));
       if (NILP (Ffile_exists_p (src)))
 	return;
     }
@@ -5281,40 +5233,40 @@ compiled one.  */);
   Fput (Qnative_compiler_error, Qerror_conditions,
 	pure_list (Qnative_compiler_error, Qerror));
   Fput (Qnative_compiler_error, Qerror_message,
-        build_pure_c_string ("Native compiler error"));
+        build_string ("Native compiler error"));
 
   DEFSYM (Qnative_ice, "native-ice");
   Fput (Qnative_ice, Qerror_conditions,
 	pure_list (Qnative_ice, Qnative_compiler_error, Qerror));
   Fput (Qnative_ice, Qerror_message,
-        build_pure_c_string ("Internal native compiler error"));
+        build_string ("Internal native compiler error"));
 
   /* By the load machinery.  */
   DEFSYM (Qnative_lisp_load_failed, "native-lisp-load-failed");
   Fput (Qnative_lisp_load_failed, Qerror_conditions,
 	pure_list (Qnative_lisp_load_failed, Qerror));
   Fput (Qnative_lisp_load_failed, Qerror_message,
-        build_pure_c_string ("Native elisp load failed"));
+        build_string ("Native elisp load failed"));
 
   DEFSYM (Qnative_lisp_wrong_reloc, "native-lisp-wrong-reloc");
   Fput (Qnative_lisp_wrong_reloc, Qerror_conditions,
 	pure_list (Qnative_lisp_wrong_reloc, Qnative_lisp_load_failed, Qerror));
   Fput (Qnative_lisp_wrong_reloc, Qerror_message,
-        build_pure_c_string ("Primitive redefined or wrong relocation"));
+        build_string ("Primitive redefined or wrong relocation"));
 
   DEFSYM (Qwrong_register_subr_call, "wrong-register-subr-call");
   Fput (Qwrong_register_subr_call, Qerror_conditions,
 	pure_list (Qwrong_register_subr_call, Qnative_lisp_load_failed, Qerror));
   Fput (Qwrong_register_subr_call, Qerror_message,
-        build_pure_c_string ("comp--register-subr can only be called during "
-			    "native lisp load phase."));
+        build_string ("comp--register-subr can only be called during "
+		      "native lisp load phase."));
 
   DEFSYM (Qnative_lisp_file_inconsistent, "native-lisp-file-inconsistent");
   Fput (Qnative_lisp_file_inconsistent, Qerror_conditions,
 	pure_list (Qnative_lisp_file_inconsistent, Qnative_lisp_load_failed, Qerror));
   Fput (Qnative_lisp_file_inconsistent, Qerror_message,
-        build_pure_c_string ("eln file inconsistent with current runtime "
-			     "configuration, please recompile"));
+        build_string ("eln file inconsistent with current runtime "
+		      "configuration, please recompile"));
 
   defsubr (&Scomp__subr_signature);
   defsubr (&Scomp_el_to_eln_rel_filename);

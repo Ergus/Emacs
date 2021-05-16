@@ -2419,7 +2419,7 @@ dump_symbol (struct dump_context *ctx,
              Lisp_Object object,
              dump_off offset)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Symbol_999DC26DEC
+#if CHECK_STRUCTS && !defined HASH_Lisp_Symbol_DD2E6013B4
 # error "Lisp_Symbol changed. See CHECK_STRUCTS comment in config.h."
 #endif
 #if CHECK_STRUCTS && !defined (HASH_symbol_redirect_ADB4F5B113)
@@ -2456,7 +2456,6 @@ dump_symbol (struct dump_context *ctx,
   DUMP_FIELD_COPY (&out, symbol, u.s.trapped_write);
   DUMP_FIELD_COPY (&out, symbol, u.s.interned);
   DUMP_FIELD_COPY (&out, symbol, u.s.declared_special);
-  DUMP_FIELD_COPY (&out, symbol, u.s.pinned);
   dump_field_lv (ctx, &out, symbol, &symbol->u.s.name, WEIGHT_STRONG);
   switch (symbol->u.s.redirect)
     {
@@ -2673,7 +2672,7 @@ dump_hash_table (struct dump_context *ctx,
                  Lisp_Object object,
                  dump_off offset)
 {
-#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_6D63EDB618
+#if CHECK_STRUCTS && !defined HASH_Lisp_Hash_Table_203821C7EF
 # error "Lisp_Hash_Table changed. See CHECK_STRUCTS comment in config.h."
 #endif
   const struct Lisp_Hash_Table *hash_in = XHASH_TABLE (object);
@@ -2689,7 +2688,6 @@ dump_hash_table (struct dump_context *ctx,
      them as close to the hash table as possible.  */
   DUMP_FIELD_COPY (out, hash, count);
   DUMP_FIELD_COPY (out, hash, next_free);
-  DUMP_FIELD_COPY (out, hash, purecopy);
   DUMP_FIELD_COPY (out, hash, mutable);
   DUMP_FIELD_COPY (out, hash, rehash_threshold);
   DUMP_FIELD_COPY (out, hash, rehash_size);
@@ -5752,8 +5750,6 @@ thaw_hash_tables (void)
     hash_table_thaw (AREF (hash_tables, i));
 }
 
-#endif /* HAVE_PDUMPER */
-
 
 void
 init_pdumper_once (void)
@@ -5762,6 +5758,7 @@ init_pdumper_once (void)
   pdumper_do_now_and_after_load (thaw_hash_tables);
 #endif
 }
+#endif /* HAVE_PDUMPER */
 
 void
 syms_of_pdumper (void)

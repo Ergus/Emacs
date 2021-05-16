@@ -30,7 +30,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include "lisp.h"
 #include "bignum.h"
-#include "puresize.h"
 #include "character.h"
 #include "buffer.h"
 #include "keyboard.h"
@@ -141,12 +140,6 @@ wrong_type_argument (Lisp_Object predicate, Lisp_Object value)
 {
   eassert (!TAGGEDP (value, Lisp_Type_Unused0));
   xsignal2 (Qwrong_type_argument, predicate, value);
-}
-
-void
-pure_write_error (Lisp_Object obj)
-{
-  xsignal2 (Qerror, build_string ("Attempt to modify read-only object"), obj);
 }
 
 void
@@ -621,7 +614,6 @@ DEFUN ("setcar", Fsetcar, Ssetcar, 2, 2, 0,
   (register Lisp_Object cell, Lisp_Object newcar)
 {
   CHECK_CONS (cell);
-  CHECK_IMPURE (cell, XCONS (cell));
   XSETCAR (cell, newcar);
   return newcar;
 }
@@ -631,7 +623,6 @@ DEFUN ("setcdr", Fsetcdr, Ssetcdr, 2, 2, 0,
   (register Lisp_Object cell, Lisp_Object newcdr)
 {
   CHECK_CONS (cell);
-  CHECK_IMPURE (cell, XCONS (cell));
   XSETCDR (cell, newcdr);
   return newcdr;
 }
@@ -801,10 +792,6 @@ The return value is undefined.  */)
   (register Lisp_Object symbol, Lisp_Object definition, Lisp_Object docstring)
 {
   CHECK_SYMBOL (symbol);
-  if (!NILP (Vpurify_flag)
-      /* If `definition' is a keymap, immutable (and copying) is wrong.  */
-      && !KEYMAPP (definition))
-    definition = Fpurecopy (definition);
 
   {
     bool autoload = AUTOLOADP (definition);
@@ -2450,7 +2437,6 @@ bool-vector.  IDX starts at 0.  */)
 
   if (VECTORP (array))
     {
-      CHECK_IMPURE (array, XVECTOR (array));
       if (idxval < 0 || idxval >= ASIZE (array))
 	args_out_of_range (array, idx);
       ASET (array, idxval, newelt);
@@ -2474,7 +2460,6 @@ bool-vector.  IDX starts at 0.  */)
     }
   else /* STRINGP */
     {
-      CHECK_IMPURE (array, XSTRING (array));
       if (idxval < 0 || idxval >= SCHARS (array))
 	args_out_of_range (array, idx);
       CHECK_CHARACTER (newelt);
@@ -3956,7 +3941,7 @@ syms_of_data (void)
 
   DEFSYM (Qcdr, "cdr");
 
-  error_tail = pure_cons (Qerror, Qnil);
+  error_tail = Fcons (Qerror, Qnil);
 
   /* ERROR is used as a signaler for random errors for which nothing else is
      right.  */
@@ -3964,11 +3949,11 @@ syms_of_data (void)
   Fput (Qerror, Qerror_conditions,
 	error_tail);
   Fput (Qerror, Qerror_message,
-	build_pure_c_string ("error"));
+	build_string ("error"));
 
 #define PUT_ERROR(sym, tail, msg)			\
-  Fput (sym, Qerror_conditions, pure_cons (sym, tail)); \
-  Fput (sym, Qerror_message, build_pure_c_string (msg))
+  Fput (sym, Qerror_conditions, Fcons (sym, tail)); \
+  Fput (sym, Qerror_message, build_string (msg))
 
   PUT_ERROR (Qquit, Qnil, "Quit");
 
@@ -3996,14 +3981,14 @@ syms_of_data (void)
   PUT_ERROR (Qno_catch, error_tail, "No catch for tag");
   PUT_ERROR (Qend_of_file, error_tail, "End of file during parsing");
 
-  arith_tail = pure_cons (Qarith_error, error_tail);
+  arith_tail = Fcons (Qarith_error, error_tail);
   Fput (Qarith_error, Qerror_conditions, arith_tail);
-  Fput (Qarith_error, Qerror_message, build_pure_c_string ("Arithmetic error"));
+  Fput (Qarith_error, Qerror_message, build_string ("Arithmetic error"));
 
   PUT_ERROR (Qbeginning_of_buffer, error_tail, "Beginning of buffer");
   PUT_ERROR (Qend_of_buffer, error_tail, "End of buffer");
   PUT_ERROR (Qbuffer_read_only, error_tail, "Buffer is read-only");
-  PUT_ERROR (Qtext_read_only, pure_cons (Qbuffer_read_only, error_tail),
+  PUT_ERROR (Qtext_read_only, Fcons (Qbuffer_read_only, error_tail),
 	     "Text is read-only");
   PUT_ERROR (Qinhibited_interaction, error_tail,
 	     "User interaction while inhibited");

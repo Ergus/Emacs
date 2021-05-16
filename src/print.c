@@ -1581,12 +1581,6 @@ print_vectorlike (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag,
 	print_object (Fhash_table_rehash_threshold (obj),
 		      printcharfun, escapeflag);
 
-	if (h->purecopy)
-	  {
-	    print_c_string (" purecopy ", printcharfun);
-	    print_object (h->purecopy ? Qt : Qnil, printcharfun, escapeflag);
-	  }
-
 	print_c_string (" data ", printcharfun);
 
 	/* Print the data here as a plist. */

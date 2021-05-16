@@ -104,7 +104,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "syntax.h"
 #include "sysselect.h"
 #include "systime.h"
-#include "puresize.h"
 
 #include "getpagesize.h"
 #include "gnutls.h"
@@ -1782,7 +1781,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   if (!initialized)
     {
       init_alloc_once ();
+#ifdef HAVE_PDUMPER
       init_pdumper_once ();
+#endif
       init_obarray_once ();
       init_eval_once ();
       init_charset_once ();
@@ -2762,8 +2763,6 @@ You must run Emacs in batch mode in order to dump it.  */)
   Lisp_Object tem;
   Lisp_Object symbol;
   ptrdiff_t count = SPECPDL_INDEX ();
-
-  check_pure_size ();
 
   if (! noninteractive)
     error ("Dumping Emacs works only in batch mode");

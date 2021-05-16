@@ -34902,7 +34902,7 @@ be let-bound around code that needs to disable messages temporarily. */);
   staticpro (&echo_area_buffer[0]);
   staticpro (&echo_area_buffer[1]);
 
-  Vmessages_buffer_name = build_pure_c_string ("*Messages*");
+  Vmessages_buffer_name = build_string ("*Messages*");
   staticpro (&Vmessages_buffer_name);
 
   mode_line_proptrans_alist = Qnil;
@@ -34994,7 +34994,7 @@ See also `overlay-arrow-string'.  */);
   DEFVAR_LISP ("overlay-arrow-string", Voverlay_arrow_string,
     doc: /* String to display as an arrow in non-window frames.
 See also `overlay-arrow-position'.  */);
-  Voverlay_arrow_string = build_pure_c_string ("=>");
+  Voverlay_arrow_string = build_string ("=>");
 
   DEFVAR_LISP ("overlay-arrow-variable-list", Voverlay_arrow_variable_list,
     doc: /* List of variables (symbols) which hold markers for overlay arrows.
@@ -35119,17 +35119,17 @@ which no explicit name has been set (see `modify-frame-parameters').  */);
 This variable has the same structure as `mode-line-format' (which see),
 and is used only on frames for which no explicit name has been set
 \(see `modify-frame-parameters').  */);
-  /* Do not nest calls to pure_list.  This works around a bug in
+  /* Do not nest calls to list.  This works around a bug in
      Oracle Developer Studio 12.6.  */
   Lisp_Object icon_title_name_format
-    = pure_list (empty_unibyte_string,
-		 build_pure_c_string ("%b - GNU Emacs at "),
-		 intern_c_string ("system-name"));
+    = list (empty_unibyte_string,
+	    build_string ("%b - GNU Emacs at "),
+	    intern_c_string ("system-name"));
   Vicon_title_format
     = Vframe_title_format
-    = pure_list (intern_c_string ("multiple-frames"),
-		 build_pure_c_string ("%b"),
-		 icon_title_name_format);
+    = list (intern_c_string ("multiple-frames"),
+	    build_string ("%b"),
+	    icon_title_name_format);
 
   DEFVAR_LISP ("message-log-max", Vmessage_log_max,
     doc: /* Maximum number of lines to keep in the message log buffer.

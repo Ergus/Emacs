@@ -794,8 +794,6 @@ value.  */)
   XSYMBOL (symbol)->u.s.declared_special = true;
   if (!NILP (doc))
     {
-      if (!NILP (Vpurify_flag))
-	doc = Fpurecopy (doc);
       Fput (symbol, Qvariable_documentation, doc);
     }
   LOADHIST_ATTACH (symbol);
@@ -912,8 +910,6 @@ usage: (defconst SYMBOL INITVALUE [DOCSTRING])  */)
 
   Finternal__define_uninitialized_variable (sym, docstring);
   tem = eval_sub (XCAR (XCDR (args)));
-  if (!NILP (Vpurify_flag))
-    tem = Fpurecopy (tem);
   Fset_default (sym, tem);      /* FIXME: set-default-toplevel-value? */
   Fput (sym, Qrisky_local_variable, Qt); /* FIXME: Why?  */
   return sym;
@@ -2227,12 +2223,6 @@ this does nothing and returns nil.  */)
       && !AUTOLOADP (XSYMBOL (function)->u.s.function))
     return Qnil;
 
-  if (!NILP (Vpurify_flag) && EQ (docstring, make_fixnum (0)))
-    /* `read1' in lread.c has found the docstring starting with "\
-       and assumed the docstring will be provided by Snarf-documentation, so it
-       passed us 0 instead.  But that leads to accidental sharing in purecopy's
-       hash-consing, so we use a (hopefully) unique integer instead.  */
-    docstring = make_ufixnum (XHASH (function));
   return Fdefalias (function,
 		    list5 (Qautoload, file, docstring, interactive, type),
 		    Qnil);
@@ -4490,7 +4480,7 @@ alist of active lexical bindings.  */);
      also use something like Fcons (Qnil, Qnil), but json.c treats any
      cons cell as error data, so use an uninterned symbol instead.  */
   Qcatch_all_memory_full
-    = Fmake_symbol (build_pure_c_string ("catch-all-memory-full"));
+    = Fmake_symbol (build_string ("catch-all-memory-full"));
 
   defsubr (&Sor);
   defsubr (&Sand);

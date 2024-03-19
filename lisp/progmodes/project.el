@@ -51,6 +51,16 @@
 ;; files inside the root must not be considered a part of it).  It
 ;; should be consistent with `project-files'.
 ;;
+;; `project-extra-info' is a user custom variable and a method to
+;; specify extra project information like build command or equivalent.
+;; The variable is a plist were the values can be strings or functions
+;; that receive the project-current as argument.  The
+;; `project-extra-info' expect project current as first parameter and an
+;; extra parameter equivalent to the plist key.  The user defined plist
+;; takes precedence over the backend defined methods, but all the
+;; specializations are optional and the functions calling them may
+;; provide conditions in case both are undefined.
+;;
 ;; This list can change in future versions.
 ;;
 ;; Transient project:
@@ -330,6 +340,72 @@ still related to it.  If the project deals with source code then,
 depending on the languages used, this list should include the
 headers search path, load path, class path, and so on."
   nil)
+
+(defcustom project-extra-info nil
+  "Project extra info defined in user space.
+
+This is intended to be set by the user.  This is expected to be a plist
+with key entries for compile.  At the moment the implemented keys are
+`:compile-command' and `:test-command'.  The entries may be either
+string constants, paths or functions.  This custom has a symmetric
+generic method with the same name that are intended to be implemented by
+the project backends.  When this variable is defined it takes precedence
+over the backend methods."
+  :safe t
+  :version "30.1"
+  :type '(plist :key-type (choice (const :build-dir)
+                                  (const :compile-command))
+                :value-type (choice string
+                                    directory
+                                    function)))
+
+(defvar project-info--alist nil
+  "Alist to store project-local values.
+
+This variable is intended to be used internally to store some values
+when the user modifies the proposed command.  As the expected behavior
+is that the next we call it get the modified version; it is necessary to
+store those values somewhere. This variable will have the `project' as a
+first key and then reuse the same keys in `project-extra-info' to access
+the proper command.  If the user keeps the command unmodified nothing
+needs to be stored here.")
+(put 'project-info--alist 'risky-local-variable t)
+
+(defun project-local-get (project key)
+  "Get VARIABLE as a PROJECT local value"
+  (alist-get key (alist-get project project-info--alist)))
+
+(defun project-local-set (project key value)
+  "Set VARIABLE as a PROJECT local value"
+  (setf (alist-get key (alist-get project project-info--alist)) value))
+
+(cl-defgeneric project-extra-info (_project _info)
+  "Return extra INFO for the current PROJECT.
+
+This function is intended to be defined by the backend when needed.
+Otherwise this returns nil and the `project-compile' command will use
+some default values.  The current valid values for INFO are the same key
+types in `project-extra-info': `:test-command' and `:compile-command'
+This method is independent from the custom variable with same name
+because project.el initializes itself lazily and variable propagation
+within directories and buffers already open will require too much work
+in the user side potentially more error prone."
+  nil)
+
+(defun project-get-extra-info (project info)
+  "Steps to get PROJECT's INFO internally.
+1. Parse the user defined variable `project-extra-info'.  If the key
+exists:
+   a. Check if it is a function and call it passing project as the first
+parameter.
+   b. If the key is a string return it as is.
+   c. Otherwise return nil.
+2. Else call the backend defined method `project-extra-info'."
+  (if-let* ((value (alist-get info project-extra-info)))
+      (cond ((functionp value) (funcall value project))
+            ((stringp info) info)
+            (t nil))
+    (project-extra-info project info)))
 
 (cl-defgeneric project-name (project)
   "A human-readable name for the PROJECT.
@@ -1741,32 +1817,55 @@ If non-nil, it overrides `compilation-buffer-name-function' for
                         project-prefixed-buffer-name)
                  (function :tag "Custom function")))
 
-;;;###autoload
-(defun project-compile ()
-  "Run `compile' in the project root."
-  (declare (interactive-only compile))
-  (interactive)
-  (let* ((default-directory (project-root (project-current t)))
-         (compilation-buffer-name-function
-          (or project-compilation-buffer-name-function
-              compilation-buffer-name-function))
-         (orig-current-buffer (and (derived-mode-p 'vc-compilation-mode)
-                                   (local-variable-p 'compile-command)
-                                   (current-buffer)))
-         (orig-compile-command (and orig-current-buffer compile-command)))
-    ;; If invoked from a `vc-compilation-mode' buffer, we want to ignore
-    ;; `compile-command' because for this command we know the user wants
-    ;; to build the project, not re-run a VC pull or push (bug#79658).
-    ;; Do this without let-binding `compile-command', however, in order
-    ;; that the user's command to build the project is not immediately
-    ;; thrown away.  Essentially we want to turn the `setq' of
-    ;; `compile-command' done by `compile' into a `setq-default'.
-    (when orig-current-buffer
-      (kill-local-variable 'compile-command))
-    (unwind-protect (call-interactively #'compile)
-      (when orig-current-buffer
-        (with-current-buffer orig-current-buffer
-          (setq-local compile-command orig-compile-command))))))
+(defmacro project-compile-helper (name command-key)
+  "Run `compile' in the project root.
+When the variable `project-extra-info' contains the entries
+`command-key' or the project backend specializes the method
+`project-extra-info' for those values; then this command uses that
+instead of the default `compile-command'."
+  `(defun ,name ()
+     (declare (interactive-only compile))
+     (interactive)
+     (let* ((project (project-current t))
+            (default-directory (project-root project))
+            (orig-current-buffer (and (derived-mode-p 'vc-compilation-mode)
+                                      (local-variable-p 'compile-command)
+                                      (current-buffer)))
+            (orig-compile-command (and orig-current-buffer compile-command))
+            (project-compile-command
+             (or (project-local-get project ,command-key)
+                 (project-get-extra-info project ,command-key)
+                 orig-compile-command
+                 compile-command))
+            (compile-command project-compile-command)
+            (compilation-buffer-name-function
+	     (or project-compilation-buffer-name-function
+	         compilation-buffer-name-function)))
+
+       ;; If invoked from a `vc-compilation-mode' buffer, we want to ignore
+       ;; `compile-command' because for this command we know the user wants
+       ;; to build the project, not re-run a VC pull or push (bug#79658).
+       ;; Do this without let-binding `compile-command', however, in order
+       ;; that the user's command to build the project is not immediately
+       ;; thrown away.  Essentially we want to turn the `setq' of
+       ;; `compile-command' done by `compile' into a `setq-default'.
+       (if (not orig-current-buffer)
+           (call-interactively #'compile)
+
+         (kill-local-variable 'compile-command)
+         (unwind-protect (call-interactively #'compile)
+           (with-current-buffer orig-current-buffer
+             (setq-local compile-command orig-compile-command))))
+
+       (unless (equal project-compile-command compile-command)
+         (project-local-set project ,command-key compile-command)))))
+
+;;;###autoload (autoload 'project-compile "project")
+(project-compile-helper project-compile :compile-command)
+
+;;;###autoload (autoload 'project-test "project")
+(project-compile-helper project-test :test-command)
+
 
 ;; Autoloaded since Emacs 31.
 (autoload 'recompile "compile" nil t)
@@ -1777,9 +1876,11 @@ If non-nil, it overrides `compilation-buffer-name-function' for
   (declare (interactive-only recompile))
   (interactive "P")
   (defvar compilation-directory)
-  (let* ((default-directory (project-root (project-current t)))
-         ;; The former overrides the latter in `recompile'.
+  (let* ((project (project-current t))
+         (default-directory (project-root project))
          (compilation-directory default-directory)
+         (compile-command (or (project-local-get project :compile-command)
+                              compile-command))
          (compilation-buffer-name-function
           (or project-compilation-buffer-name-function
               compilation-buffer-name-function)))

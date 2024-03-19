@@ -51,6 +51,9 @@
 ;; files inside the root must not be considered a part of it).  It
 ;; should be consistent with `project-files'.
 ;;
+;; `project-build-dir' can be overridden if the project backend has some
+;; extra information about the project build directory.
+;;
 ;; This list can change in future versions.
 ;;
 ;; Transient project:
@@ -210,6 +213,12 @@ directory."
   :group 'project
   :version "30.1")
 
+(defcustom project-build-dir nil
+  "Build directory for current project."
+  :type 'directory
+  :safe t
+  :version "30.1")
+
 ;;;###autoload
 (defun project-current (&optional maybe-prompt directory)
   "Return the project instance in DIRECTORY, defaulting to `default-directory'.
@@ -294,6 +303,28 @@ still related to it.  If the project deals with source code then,
 depending on the languages used, this list should include the
 headers search path, load path, class path, and so on."
   nil)
+
+(cl-defgeneric project-build-dir (_project)
+  "Return build directory of the current PROJECT.
+
+This function is intended to be defined by the backend when possible.
+Otherwise this returns nil and the `project-compile' command will be
+called in the project-root.
+If the user defines the directory-local variable `project-build-dir' it
+will have precedence over the result of this function."
+ nil)
+
+(defun project-get-build-dir (project)
+  "Return build directory of the current PROJECT.
+If the variable `project-build-dir' is defined, this function returns
+it, otherwise it returns the project root.  If the defined path is
+relative, this expands it relatively to the project's root"
+  (let ((dir (or project-build-dir
+                 (project-build-dir project)
+                 (project-root project)))) ;; I assume project-root is absolute
+    (if (file-name-absolute-p dir)
+        dir
+      (expand-file-name dir (project-root project)))))
 
 (cl-defgeneric project-name (project)
   "A human-readable name for the PROJECT.
@@ -1526,7 +1557,7 @@ If non-nil, it overrides `compilation-buffer-name-function' for
   "Run `compile' in the project root."
   (declare (interactive-only compile))
   (interactive)
-  (let ((default-directory (project-root (project-current t)))
+  (let ((default-directory (project-get-build-dir (project-current t)))
         (compilation-buffer-name-function
          (or project-compilation-buffer-name-function
              compilation-buffer-name-function)))

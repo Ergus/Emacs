@@ -1557,10 +1557,13 @@ If non-nil, it overrides `compilation-buffer-name-function' for
   "Run `compile' in the project root."
   (declare (interactive-only compile))
   (interactive)
-  (let ((default-directory (project-get-build-dir (project-current t)))
-        (compilation-buffer-name-function
-         (or project-compilation-buffer-name-function
-             compilation-buffer-name-function)))
+  (let* ((project (project-current t))
+         (default-directory (project-get-build-dir project))
+         (compile-command (or (plist-get project :compile-command)
+                              compile-command))
+         (compilation-buffer-name-function
+          (or project-compilation-buffer-name-function
+              compilation-buffer-name-function)))
     (call-interactively #'compile)))
 
 ;;;###autoload

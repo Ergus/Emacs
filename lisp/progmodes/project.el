@@ -213,22 +213,6 @@ directory."
   :group 'project
   :version "30.1")
 
-(defcustom project-build-dir nil
-  "Build directory for current project.
-This is the custom that the user could specify in dir-locals to override
-the option specified by the project's backend."
-  :type 'directory
-  :safe t
-  :version "30.1")
-
-(defcustom project-compile-command nil
-  "Build command for current project.
-This is the custom that the user could specify in dir-locals to override
-the option specified by the project's backend."
-  :type 'directory
-  :safe t
-  :version "30.1")
-
 ;;;###autoload
 (defun project-current (&optional maybe-prompt directory)
   "Return the project instance in DIRECTORY, defaulting to `default-directory'.
@@ -314,39 +298,26 @@ depending on the languages used, this list should include the
 headers search path, load path, class path, and so on."
   nil)
 
-(cl-defgeneric project-build-dir (_project)
-  "Return build directory of the current PROJECT.
-
-This function is intended to be defined by the backend when possible.
-Otherwise this returns nil and the `project-compile' command will be
-called in the project-root.
-If the user defines the directory-local variable `project-build-dir' it
-will have precedence over the result of this function."
- nil)
-
-(defun project-get-build-dir (project)
-  "Return build directory of the current PROJECT.
-1. If the variable `project-build-dir' is defined, this function returns
-it.  2. Else if the function `project-build-dir' return non-nil.
-3. else it return the project-root.
-If the defined path is relative, this expands it relatively to the
-project's root."
-  (let ((dir (or project-build-dir           ;; variable for dir-locals or connection local vars
-                 (project-build-dir project) ;; backend function
-                 (project-root project))))   ;; I assume project-root is always absolute
-    (if (file-name-absolute-p dir)
-        dir
-      (expand-file-name dir (project-root project)))))
-
-(cl-defgeneric project-compile-command (_project)
-  "Return build command of the current PROJECT.
+(cl-defgeneric project-compile-info (_project _info)
+  "Return build information of the current PROJECT.
 
 This function is intended to be defined by the backend when possible.
 Otherwise this returns nil and the `project-compile' command will use
-the default `compile-command' value.  If the user defines the
-directory-local variable `project-build-command' it will have preference
-over this function and this will be never called."
- nil)
+the default values.
+The current valid values for INFO are `dir' and `command'"
+  nil)
+
+(defun project-get-build-dir (project)
+  "Return absolute build directory for the current PROJECT.
+1. Tries the generic function `project-compile-info' with info='dir.
+2. else it return the project-root.
+If the defined path is relative, this expands it relatively to the
+project's root."
+  (let ((dir (or (project-compile-info project 'dir)   ;; backend function
+                 (project-root project))))        ;; I assume project-root is always absolute
+    (if (file-name-absolute-p dir)
+        dir
+      (expand-file-name dir (project-root project)))))
 
 (cl-defgeneric project-name (project)
   "A human-readable name for the PROJECT.
@@ -1583,8 +1554,7 @@ If non-nil, it overrides `compilation-buffer-name-function' for
   ;; variables at this point... maybe before or inside the let.
   (let* ((project (project-current t))
          (default-directory (project-get-build-dir project))
-         (compile-command (or project-compile-command
-                              (project-compile-command project)
+         (compile-command (or (project-compile-info project 'command)
                               compile-command))
          (compilation-buffer-name-function
           (or project-compilation-buffer-name-function

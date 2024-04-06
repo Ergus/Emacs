@@ -51,8 +51,15 @@
 ;; files inside the root must not be considered a part of it).  It
 ;; should be consistent with `project-files'.
 ;;
-;; `project-build-dir' can be overridden if the project backend has some
-;; extra information about the project build directory.
+;; `project-extra-info' is a user custom variable and a method to
+;; specify extra project information like build command or equivalent.
+;; The variable is a plist were the values can be strings or functions
+;; that receive the project-current as argument.  The
+;; `project-extra-info' expect project current as first parameter and an
+;; extra parameter equivalent to the plist key.  The user defined plist
+;; takes precedence over the backend defined methods, but all the
+;; specializations are optional and the functions calling them may
+;; provide conditions in case both are undefined.
 ;;
 ;; This list can change in future versions.
 ;;
@@ -298,26 +305,51 @@ depending on the languages used, this list should include the
 headers search path, load path, class path, and so on."
   nil)
 
-(cl-defgeneric project-compile-info (_project _info)
-  "Return build information of the current PROJECT.
+(defcustom project-extra-info nil
+  "Project extra info defined in user space.
 
-This function is intended to be defined by the backend when possible.
+This is intended to be set by the user.  This is expected to be a plist
+with key entries for compile.  At the moment the implemented keys are
+`:compile-command' and `:compile-dir'.  The entries may be either string
+constants, paths or functions.  This custom has a symmetric generic
+method with the same name that are intended to be implemented by the
+project backends.  When this variable is defined it takes precedence
+over the backend methods."
+  :safe t
+  :version "30.1"
+  :type '(plist :key-type (choice (const :compile-dir)
+                                  (const :compile-command))
+                :value-type (choice string
+                                    directory
+                                    function)))
+
+(cl-defgeneric project-extra-info (_project _info)
+  "Return extra INFO for the current PROJECT.
+
+This function is intended to be defined by the backend when needed.
 Otherwise this returns nil and the `project-compile' command will use
-the default values.
-The current valid values for INFO are `dir' and `command'"
+some default values.  The current valid values for INFO are the same key
+types in project-compile-info: `:compile-dir' and `:compile-command'
+This method is independent from the custom variable with same name
+because project.el initializes itself lazily and variable propagation
+within directories and buffers already open will require too much work
+in the user side potentially more error prone."
   nil)
 
-(defun project-get-build-dir (project)
-  "Return absolute build directory for the current PROJECT.
-1. Tries the generic function `project-compile-info' with info='dir.
-2. else it return the project-root.
-If the defined path is relative, this expands it relatively to the
-project's root."
-  (let ((dir (or (project-compile-info project 'dir)   ;; backend function
-                 (project-root project))))        ;; I assume project-root is always absolute
-    (if (file-name-absolute-p dir)
-        dir
-      (expand-file-name dir (project-root project)))))
+(defun project--get-extra-info (project info)
+  "Steps to get PROJECT's INFO internally.
+1. Parse the user defined variable `project-compile-info'.  If the key
+exists:
+   a. Check if it is a function and call it passing project as the first
+parameter.
+   b. If the key is a string return it as is.
+   c. Otherwise return nil.
+2. Else call the backend defined method `project-compile-info'."
+  (if-let ((value (plist-get project-extra-info info)))
+      (cond ((functionp value) (funcall value project))
+            ((stringp info) info)
+            (t nil))
+    (project-extra-info project info)))
 
 (cl-defgeneric project-name (project)
   "A human-readable name for the PROJECT.
@@ -1547,14 +1579,22 @@ If non-nil, it overrides `compilation-buffer-name-function' for
 
 ;;;###autoload
 (defun project-compile ()
-  "Run `compile' in the project root."
+  "Run `compile' in the project build directory.
+When the variable `project-extra-info' contains the entries
+`:compile-dir' or `:compile-command' or the project backend specializes
+the method `project-extra-info' for those values; then this command uses
+that instead of the default: `project-root' and `compile-command'."
   (declare (interactive-only compile))
   (interactive)
   ;; I am wondering whenever we need to expand connection local
   ;; variables at this point... maybe before or inside the let.
   (let* ((project (project-current t))
-         (default-directory (project-get-build-dir project))
-         (compile-command (or (project-compile-info project 'command)
+         (dir (or (project--get-extra-info project :compile-dir)
+                  (project-root project)))
+         (default-directory (if (file-name-absolute-p dir)
+                                dir
+                              (expand-file-name dir (project-root project))))
+         (compile-command (or (project--get-extra-info project :compile-command)
                               compile-command))
          (compilation-buffer-name-function
           (or project-compilation-buffer-name-function

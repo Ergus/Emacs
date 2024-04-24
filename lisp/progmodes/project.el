@@ -310,14 +310,14 @@ headers search path, load path, class path, and so on."
 
 This is intended to be set by the user.  This is expected to be a plist
 with key entries for compile.  At the moment the implemented keys are
-`:compile-command' and `:compile-dir'.  The entries may be either string
+`:compile-command' and `:build-dir'.  The entries may be either string
 constants, paths or functions.  This custom has a symmetric generic
 method with the same name that are intended to be implemented by the
 project backends.  When this variable is defined it takes precedence
 over the backend methods."
   :safe t
   :version "30.1"
-  :type '(plist :key-type (choice (const :compile-dir)
+  :type '(plist :key-type (choice (const :build-dir)
                                   (const :compile-command))
                 :value-type (choice string
                                     directory
@@ -329,7 +329,7 @@ over the backend methods."
 This function is intended to be defined by the backend when needed.
 Otherwise this returns nil and the `project-compile' command will use
 some default values.  The current valid values for INFO are the same key
-types in project-compile-info: `:compile-dir' and `:compile-command'
+types in project-compile-info: `:build-dir' and `:compile-command'
 This method is independent from the custom variable with same name
 because project.el initializes itself lazily and variable propagation
 within directories and buffers already open will require too much work
@@ -1577,29 +1577,45 @@ If non-nil, it overrides `compilation-buffer-name-function' for
                         project-prefixed-buffer-name)
                  (function :tag "Custom function")))
 
+(defun project-compile-wrapper (command-key buffer-key)
+  "Run `compile' in the project root.
+When the variable `project-extra-info' contains the entries
+`command-key' or the project backend specializes the method
+`project-extra-info' for those values; then this command uses that
+instead of the default `compile-command'."
+  (let* ((project (project-current t))
+         (default-directory (project-root project))
+         (compile-command
+	  (or (project--get-extra-info project command-key)
+              compile-command))
+         (compilation-buffer-name-function
+	  (or project-compilation-buffer-name-function
+	      compilation-buffer-name-function)))
+    (call-interactively #'compile)))
+
 ;;;###autoload
 (defun project-compile ()
   "Run `compile' in the project build directory.
 When the variable `project-extra-info' contains the entries
-`:compile-dir' or `:compile-command' or the project backend specializes
-the method `project-extra-info' for those values; then this command uses
-that instead of the default: `project-root' and `compile-command'."
+`:compile-command' or `:compile-buffer' or the project backend
+specializes the method `project-extra-info' for those values; then this
+command uses that instead of the default: `compile-command'."
   (declare (interactive-only compile))
   (interactive)
   ;; I am wondering whenever we need to expand connection local
   ;; variables at this point... maybe before or inside the let.
-  (let* ((project (project-current t))
-         (dir (or (project--get-extra-info project :compile-dir)
-                  (project-root project)))
-         (default-directory (if (file-name-absolute-p dir)
-                                dir
-                              (expand-file-name dir (project-root project))))
-         (compile-command (or (project--get-extra-info project :compile-command)
-                              compile-command))
-         (compilation-buffer-name-function
-          (or project-compilation-buffer-name-function
-              compilation-buffer-name-function)))
-    (call-interactively #'compile)))
+  (project-compile-wrapper :compile-command :compile-buffer))
+
+(defun project-test ()
+  "Run `compile' in the project build directory.
+When the variable `project-extra-info' contains the entries
+`:test-command' or `:test-buffer' or the project backend
+specializes the method `project-extra-info' for those values; then this
+command uses that instead of the default: `compile-command'."
+  (declare (interactive-only compile))
+  (interactive)
+  (project-compile-wrapper :test-command :test-buffer))
+
 
 ;;;###autoload
 (defun project-recompile (&optional edit-command)

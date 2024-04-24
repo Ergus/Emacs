@@ -1577,44 +1577,30 @@ If non-nil, it overrides `compilation-buffer-name-function' for
                         project-prefixed-buffer-name)
                  (function :tag "Custom function")))
 
-(defun project-compile-wrapper (command-key buffer-key)
+(defmacro project-compile-helper (name command-key)
   "Run `compile' in the project root.
 When the variable `project-extra-info' contains the entries
 `command-key' or the project backend specializes the method
 `project-extra-info' for those values; then this command uses that
 instead of the default `compile-command'."
-  (let* ((project (project-current t))
-         (default-directory (project-root project))
-         (compile-command
-	  (or (project--get-extra-info project command-key)
-              compile-command))
-         (compilation-buffer-name-function
-	  (or project-compilation-buffer-name-function
-	      compilation-buffer-name-function)))
-    (call-interactively #'compile)))
+  `(defun ,name ()
+     (declare (interactive-only compile))
+     (interactive)
+     (let* ((project (project-current t))
+            (default-directory (project-root project))
+            (compile-command
+	     (or (project--get-extra-info project ,command-key)
+                 compile-command))
+            (compilation-buffer-name-function
+	     (or project-compilation-buffer-name-function
+	         compilation-buffer-name-function)))
+       (call-interactively #'compile))))
 
 ;;;###autoload
-(defun project-compile ()
-  "Run `compile' in the project build directory.
-When the variable `project-extra-info' contains the entries
-`:compile-command' or `:compile-buffer' or the project backend
-specializes the method `project-extra-info' for those values; then this
-command uses that instead of the default: `compile-command'."
-  (declare (interactive-only compile))
-  (interactive)
-  ;; I am wondering whenever we need to expand connection local
-  ;; variables at this point... maybe before or inside the let.
-  (project-compile-wrapper :compile-command :compile-buffer))
+(project-compile-helper project-compile :compile-command)
 
-(defun project-test ()
-  "Run `compile' in the project build directory.
-When the variable `project-extra-info' contains the entries
-`:test-command' or `:test-buffer' or the project backend
-specializes the method `project-extra-info' for those values; then this
-command uses that instead of the default: `compile-command'."
-  (declare (interactive-only compile))
-  (interactive)
-  (project-compile-wrapper :test-command :test-buffer))
+;;;###autoload
+(project-compile-helper project-test :test-command)
 
 
 ;;;###autoload

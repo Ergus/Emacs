@@ -1596,10 +1596,11 @@ instead of the default `compile-command'."
 	         compilation-buffer-name-function)))
        (call-interactively #'compile))))
 
-;;;###autoload
+
+;;;###autoload (autoload 'project-compile "project")
 (project-compile-helper project-compile :compile-command)
 
-;;;###autoload
+;;;###autoload (autoload 'project-test "project")
 (project-compile-helper project-test :test-command)
 
 

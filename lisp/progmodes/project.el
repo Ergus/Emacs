@@ -345,7 +345,7 @@ parameter.
    b. If the key is a string return it as is.
    c. Otherwise return nil.
 2. Else call the backend defined method `project-compile-info'."
-  (if-let ((value (plist-get project-extra-info info)))
+  (if-let* ((value (plist-get project-extra-info info)))
       (cond ((functionp value) (funcall value project))
             ((stringp info) info)
             (t nil))

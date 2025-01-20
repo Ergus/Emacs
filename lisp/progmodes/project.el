@@ -310,10 +310,10 @@ headers search path, load path, class path, and so on."
 
 This is intended to be set by the user.  This is expected to be a plist
 with key entries for compile.  At the moment the implemented keys are
-`:compile-command' and `:build-dir'.  The entries may be either string
-constants, paths or functions.  This custom has a symmetric generic
-method with the same name that are intended to be implemented by the
-project backends.  When this variable is defined it takes precedence
+`:compile-command' and `:test-command'.  The entries may be either
+string constants, paths or functions.  This custom has a symmetric
+generic method with the same name that are intended to be implemented by
+the project backends.  When this variable is defined it takes precedence
 over the backend methods."
   :safe t
   :version "30.1"
@@ -329,7 +329,7 @@ over the backend methods."
 This function is intended to be defined by the backend when needed.
 Otherwise this returns nil and the `project-compile' command will use
 some default values.  The current valid values for INFO are the same key
-types in project-compile-info: `:build-dir' and `:compile-command'
+types in `project-extra-info': `:test-command' and `:compile-command'
 This method is independent from the custom variable with same name
 because project.el initializes itself lazily and variable propagation
 within directories and buffers already open will require too much work
@@ -338,13 +338,13 @@ in the user side potentially more error prone."
 
 (defun project--get-extra-info (project info)
   "Steps to get PROJECT's INFO internally.
-1. Parse the user defined variable `project-compile-info'.  If the key
+1. Parse the user defined variable `project-extra-info'.  If the key
 exists:
    a. Check if it is a function and call it passing project as the first
 parameter.
    b. If the key is a string return it as is.
    c. Otherwise return nil.
-2. Else call the backend defined method `project-compile-info'."
+2. Else call the backend defined method `project-extra-info'."
   (if-let* ((value (plist-get project-extra-info info)))
       (cond ((functionp value) (funcall value project))
             ((stringp info) info)

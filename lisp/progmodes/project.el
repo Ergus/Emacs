@@ -336,7 +336,7 @@ within directories and buffers already open will require too much work
 in the user side potentially more error prone."
   nil)
 
-(defun project--get-extra-info (project info)
+(defun project-get-extra-info (project info)
   "Steps to get PROJECT's INFO internally.
 1. Parse the user defined variable `project-extra-info'.  If the key
 exists:
@@ -1588,13 +1588,13 @@ instead of the default `compile-command'."
      (interactive)
      (let* ((project (project-current t))
             (default-directory (project-root project))
-            (compile-command
-	     (or (project--get-extra-info project ,command-key)
+            (project-compile-command
+	     (or (project-get-extra-info project ,command-key)
                  compile-command))
             (compilation-buffer-name-function
 	     (or project-compilation-buffer-name-function
 	         compilation-buffer-name-function)))
-       (call-interactively #'compile))))
+       (funcall-interactively #'compile project-compile-command))))
 
 
 ;;;###autoload (autoload 'project-compile "project")

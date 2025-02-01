@@ -323,6 +323,26 @@ over the backend methods."
                                     directory
                                     function)))
 
+(defvar project-info--alist nil
+  "Alist to store project-local values.
+
+This variable is intended to be used internally to store some values
+when the user modifies the proposed command.  As the expected behavior
+is that the next we call it get the modified version; it is necessary to
+store those values somewhere. This variable will have the `project' as a
+first key and then reuse the same keys in `project-extra-info' to access
+the proper command.  If the user keeps the command unmodified nothing
+needs to be stored here.")
+(put 'project-info--alist 'risky-local-variable t)
+
+(defun project-local-get (project key)
+  "Get VARIABLE as a PROJECT local value"
+  (alist-get key (alist-get project project-info--alist)))
+
+(defun project-local-set (project key value)
+  "Set VARIABLE as a PROJECT local value"
+  (setf (alist-get key (alist-get project project-info--alist)) value))
+
 (cl-defgeneric project-extra-info (_project _info)
   "Return extra INFO for the current PROJECT.
 
@@ -345,7 +365,7 @@ parameter.
    b. If the key is a string return it as is.
    c. Otherwise return nil.
 2. Else call the backend defined method `project-extra-info'."
-  (if-let* ((value (plist-get project-extra-info info)))
+  (if-let* ((value (alist-get info project-extra-info)))
       (cond ((functionp value) (funcall value project))
             ((stringp info) info)
             (t nil))
@@ -1589,13 +1609,17 @@ instead of the default `compile-command'."
      (let* ((project (project-current t))
             (default-directory (project-root project))
             (project-compile-command
-	     (or (project-get-extra-info project ,command-key)
+	     (or (project-local-get project ,command-key)
+                 (project-get-extra-info project ,command-key)
                  compile-command))
+            (compile-command project-compile-command)
             (compilation-buffer-name-function
 	     (or project-compilation-buffer-name-function
 	         compilation-buffer-name-function)))
-       (funcall-interactively #'compile project-compile-command))))
 
+       (call-interactively #'compile)
+       (unless (equal project-compile-command compile-command)
+         (project-local-set project ,command-key compile-command)))))
 
 ;;;###autoload (autoload 'project-compile "project")
 (project-compile-helper project-compile :compile-command)
@@ -1609,10 +1633,13 @@ instead of the default `compile-command'."
   "Run `recompile' in the project root with an appropriate buffer."
   (declare (interactive-only recompile))
   (interactive "P")
-  (let ((default-directory (project-root (project-current t)))
-        (compilation-buffer-name-function
-         (or project-compilation-buffer-name-function
-             compilation-buffer-name-function)))
+  (let* ((project (project-current t))
+         (default-directory (project-root project))
+         (compile-command (or (project-local-get project :compile-command)
+                              compile-command))
+         (compilation-buffer-name-function
+          (or project-compilation-buffer-name-function
+              compilation-buffer-name-function)))
     (recompile edit-command)))
 
 (defcustom project-ignore-buffer-conditions nil
